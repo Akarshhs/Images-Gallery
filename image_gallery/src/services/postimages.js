@@ -24,7 +24,10 @@ const s3 = new AWS.S3({
 //Download the files from the image url of the request
 async function downloadFiles(images) {
     try {
-        console.log('27', uuidv4())
+
+        if (!fs.existsSync(FILE_PATH)) {
+            fs.mkdirSync(FILE_PATH);
+        }
         await Promise.all(images.map(async(item, index) => {
             if (item.isSupported) {
                 const random = uuidv4();
