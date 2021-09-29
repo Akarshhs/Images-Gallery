@@ -3,6 +3,7 @@ const download = require('download');
 const fs = require('fs');
 const moment = require('moment');
 const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 
 
 
@@ -23,14 +24,16 @@ const s3 = new AWS.S3({
 //Download the files from the image url of the request
 async function downloadFiles(images) {
     try {
-
+        console.log('27', uuidv4())
         await Promise.all(images.map(async(item, index) => {
             if (item.isSupported) {
-                console.log("38", index)
-                fs.writeFileSync(`${FILE_PATH}/image_${index}${item.fileType}`,
+                const random = uuidv4();
+                console.log("random is ", random)
+                fs.writeFileSync(`${FILE_PATH}/image_${random}${item.fileType}`,
                     await download(item.url)
                 );
                 item.isDownloaded = true;
+                item.random = random;
             }
         }))
         return images;
@@ -83,7 +86,8 @@ async function insertToDB(images) {
         //remove the unwanted keys
         images.map(img => {
             delete img.isSupported;
-            delete img.isDownloaded
+            delete img.isDownloaded;
+            delete img.random;
         })
         console.log("images are112", images);
         let result = await insertData(validImages, 'history');
@@ -108,7 +112,7 @@ async function insertToS3(images) {
                 let result = await s3.upload({
                     Bucket: 'images-list',
                     Key: item.fileName,
-                    Body: fs.readFileSync(`${FILE_PATH}/${item.fileName}`)
+                    Body: fs.readFileSync(`${FILE_PATH}/image_${item.random}${item.fileType}`)
 
                 }).promise();
                 item.s3url = result.Location;
@@ -137,16 +141,19 @@ function getImageExtensions(images) {
 //calculates downloaded images size in MB
 function getImageSize(images) {
     try {
-        console.log("76", FILE_PATH, images)
+        console.log("143 images", images);
         let filenames = fs.readdirSync(FILE_PATH);
+        console.log("filenames", filenames)
         filenames.map(name => {
             let fileSize = fs.statSync(`${FILE_PATH}/${name}`);
             fileSize = fileSize.size / (1024 * 1024);
-            let fileIndex = name.split('_')[1].split('.')[0];
+            let fileKey = name.split('_')[1].split('.')[0];
 
             //attach the image size to image configuration
-            images[fileIndex]['fileSize'] = fileSize;
-            images[fileIndex]['fileName'] = `image_${fileIndex}${images[fileIndex]['fileType']}`
+            console.log("fileKey", fileKey)
+            let imageInfo = images.find(item => item.random === fileKey)
+            imageInfo['fileSize'] = fileSize;
+            imageInfo['fileName'] = `image_${fileKey}${imageInfo.fileType}`
         });
         return images
 
